@@ -1,7 +1,7 @@
 'use strict';
 // Guarda o jogo inteiro no aparelho para funcionar sem internet.
 // FILES e CACHE são atualizados por tools/build_web.py.
-const CACHE = 'rkz-80d73320b8';
+const CACHE = 'rkz-fddefade34';
 const FILES = [
   './',
   'decks/backs.webp',
@@ -18,6 +18,7 @@ const FILES = [
   'js/cardart.js',
   'js/game.js',
   'js/sounds.js',
+  'js/userdecks.js',
   'js/view.js',
   'js/worker.js',
   'manifest.webmanifest',
@@ -33,7 +34,8 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    // Só apaga versões antigas do próprio site; os baralhos importados ('user-decks') ficam.
+    .then(keys => Promise.all(keys.filter(k => k.startsWith('rkz-') && k !== CACHE).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 

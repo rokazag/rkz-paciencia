@@ -139,7 +139,7 @@ class CardArt {
     if (deckId !== this.deckId) {
       this.deckSheet = null;
       if (deckId) {
-        loadImage('decks/' + deckId + '.webp').then(img => {
+        loadImage(deckUrl(deckId + '.webp')).then(img => {
           if (this.deckId !== deckId) return;
           this.deckSheet = img;
           this.clear();
@@ -148,7 +148,7 @@ class CardArt {
       }
     }
     if (backImage >= 0 && !this.backSheet) {
-      loadImage('decks/backs.webp').then(img => {
+      loadImage(deckUrl('backs.webp')).then(img => {
         this.backSheet = img;
         this.backCanvas = null;
         this.onReady();
@@ -166,6 +166,14 @@ class CardArt {
   clear() {
     this.faces.fill(null);
     this.backCanvas = null;
+  }
+
+  /** Esquece as folhas carregadas (os baralhos disponíveis mudaram). */
+  reset() {
+    this.deckId = null;
+    this.deckSheet = null;
+    this.backSheet = null;
+    this.width = 0;
   }
 
   face(c) {

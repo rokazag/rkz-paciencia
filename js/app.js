@@ -2,7 +2,7 @@
 // Tela principal: barra de botões, menus, configurações e estatísticas (MainActivity.java).
 
 const APP_NAME = 'Rkz Paciência';
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.7.2';
 const DEVELOPER = 'Desenvolvido por Rodolfo Pimenta Casagrande';
 
 const TABLE_COLORS = ['#1E6B3A', '#16507A', '#7A1F2B', '#4A2C6B', '#3E4A52', '#6B4A1E'];
@@ -332,20 +332,52 @@ const app = {
     }
   },
 
-  /** Baralhos de imagem disponíveis (decks/decks.json, gerado por tools/build_web.py). */
-  loadDeckIndex() {
-    fetch('decks/decks.json')
-      .then(r => (r.ok ? r.json() : null))
-      .then(j => {
-        if (!j) return;
-        this.decks = [{ id: '', name: 'Rkz' }, ...(j.decks || [])];
-        this.backCount = j.backs || 0;
-        // Baralho/verso escolhido que não existe mais nesta instalação.
-        if (!this.decks.some(d => d.id === this.deckId)) this.deckId = '';
-        if (this.backImage >= this.backCount) this.backImage = -1;
-        this.applySettings();
-      })
-      .catch(() => {});
+  /**
+   * Baralhos de imagem disponíveis: os importados neste aparelho (js/userdecks.js) ou,
+   * sem eles, os do site (decks/decks.json, gerado por tools/build_web.py).
+   */
+  async loadDeckIndex() {
+    let j = await loadUserDecks();
+    if (!j) {
+      try {
+        const r = await fetch('decks/decks.json');
+        j = r.ok ? await r.json() : null;
+      } catch (e) {
+        j = null;
+      }
+    }
+    this.decks = [{ id: '', name: 'Rkz' }, ...((j && j.decks) || [])];
+    this.backCount = (j && j.backs) || 0;
+    // Baralho/verso escolhido que não existe nesta instalação: fica guardado na
+    // preferência (volta quando o baralho for importado), mas a mesa usa o padrão.
+    const savedDeck = prefs.get('deck', ''), savedBack = prefs.get('back_img', -1);
+    this.deckId = this.decks.some(d => d.id === savedDeck) ? savedDeck : '';
+    this.backImage = savedBack < this.backCount ? savedBack : -1;
+    this.view.art.reset();
+    this.applySettings();
+  },
+
+  /** Escolhe um arquivo .rkzb e guarda os baralhos dele neste aparelho. */
+  pickDeckBundle(onDone) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      input.remove();
+      if (!file) return;
+      toast('Importando baralhos…');
+      try {
+        const idx = await importDeckBundle(file);
+        await this.loadDeckIndex();
+        toast(`${idx.decks.length} baralhos importados.`, true);
+        onDone();
+      } catch (e) {
+        dialog({ title: 'Importar baralhos', message: e.message || String(e), positive: ['OK'] });
+      }
+    });
+    input.click();
   },
 
   // ---------------------------------------------------------------- barra de botões
@@ -749,7 +781,7 @@ const app = {
   /** Miniatura da folha thumbs.webp (desenhada quando a folha carregar). */
   sheetThumb(index, w, h) {
     const c = this.thumbCanvas(w, h);
-    loadImage('decks/thumbs.webp').then(img => {
+    loadImage(deckUrl('thumbs.webp')).then(img => {
       if (!img) return;
       const x = index % THUMB_COLS * THUMB_W, y = Math.floor(index / THUMB_COLS) * THUMB_H;
       if (x + THUMB_W > img.naturalWidth || y + THUMB_H > img.naturalHeight) return;
@@ -825,7 +857,28 @@ const app = {
     const back = gallery(backThumbs, backSel);
     box.appendChild(back.node);
 
-    dialog({
+    // Baralhos extras: ficam só neste aparelho (não estão no site).
+    box.appendChild(label('Mais baralhos'));
+    const imported = !!userDecks.index;
+    box.appendChild(messageBlock(imported
+      ? `Baralhos importados neste aparelho: ${userDecks.index.decks.length}.`
+      : 'Os outros baralhos ficam num arquivo à parte (RkzPaciencia-baralhos.rkzb). Salve o arquivo no iPhone (app Arquivos) e importe aqui.'));
+    const importBtn = el('button', 'wide-btn', imported ? 'Importar de novo' : 'Importar arquivo de baralhos');
+    importBtn.addEventListener('click', () => this.pickDeckBundle(() => { settings.close(); this.showSettings(); }));
+    box.appendChild(importBtn);
+    if (imported) {
+      const removeBtn = el('button', 'wide-btn secondary', 'Remover baralhos importados');
+      removeBtn.addEventListener('click', () => dialog({
+        message: 'Remover os baralhos importados deste aparelho?',
+        positive: ['Sim', () => {
+          removeUserDecks().then(() => this.loadDeckIndex()).then(() => { settings.close(); this.showSettings(); });
+        }],
+        negative: ['Não'],
+      }));
+      box.appendChild(removeBtn);
+    }
+
+    const settings = dialog({
       title: 'Configurações',
       content: box,
       positive: ['OK', () => {

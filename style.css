@@ -303,6 +303,22 @@ body { position: fixed; inset: 0; }
 }
 .thumb.sel { background: var(--accent); }
 
+.settings .msg { font-size: 16px; color: #444; }
+.wide-btn {
+  display: block;
+  width: 100%;
+  margin: 10px 0 2px;
+  min-height: 48px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font: 600 17px var(--font);
+  touch-action: manipulation;
+}
+.wide-btn.secondary { background: #eee; color: #8b1e1e; }
+.wide-btn:active { filter: brightness(0.9); }
+
 .num-input {
   width: 100%;
   font-size: 24px;
