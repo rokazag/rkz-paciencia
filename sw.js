@@ -1,7 +1,7 @@
 'use strict';
 // Guarda o jogo inteiro no aparelho para funcionar sem internet.
 // FILES e CACHE são atualizados por tools/build_web.py.
-const CACHE = 'rkz-fddefade34';
+const CACHE = 'rkz-b7f2b89ba8';
 const FILES = [
   './',
   'decks/backs.webp',
@@ -16,6 +16,7 @@ const FILES = [
   'js/analyzer.js',
   'js/app.js',
   'js/cardart.js',
+  'js/designs.js',
   'js/game.js',
   'js/sounds.js',
   'js/userdecks.js',

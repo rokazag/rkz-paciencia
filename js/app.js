@@ -2,7 +2,7 @@
 // Tela principal: barra de botões, menus, configurações e estatísticas (MainActivity.java).
 
 const APP_NAME = 'Rkz Paciência';
-const APP_VERSION = '1.7.2';
+const APP_VERSION = '1.8.0';
 const DEVELOPER = 'Desenvolvido por Rodolfo Pimenta Casagrande';
 
 const TABLE_COLORS = ['#1E6B3A', '#16507A', '#7A1F2B', '#4A2C6B', '#3E4A52', '#6B4A1E'];
@@ -286,7 +286,8 @@ const app = {
     this.stuckTimer = 0;
     this.stuckTask = null;
     this.searching = false;
-    this.decks = [{ id: '', name: 'Rkz' }];
+    this.decks = [{ id: '', name: 'Rkz' }, ...DECK_STYLES.map(d => ({ id: d.id, name: d.name }))];
+    this.imageDecks = 0;
     this.backCount = 0;
 
     $('btn-new').addEventListener('click', () => { this.hideBar(); this.confirmNewGame(null); });
@@ -346,7 +347,10 @@ const app = {
         j = null;
       }
     }
-    this.decks = [{ id: '', name: 'Rkz' }, ...((j && j.decks) || [])];
+    const images = (j && j.decks) || [];
+    // Ordem: o Rkz, os baralhos próprios desenhados e por fim os de imagem.
+    this.decks = [{ id: '', name: 'Rkz' }, ...DECK_STYLES.map(d => ({ id: d.id, name: d.name })), ...images];
+    this.imageDecks = images.length;
     this.backCount = (j && j.backs) || 0;
     // Baralho/verso escolhido que não existe nesta instalação: fica guardado na
     // preferência (volta quando o baralho for importado), mas a mesa usa o padrão.
@@ -719,6 +723,7 @@ const app = {
     this.tableColor = prefs.get('table', TABLE_COLORS[0]);
     this.backColor = prefs.get('back', BACK_COLORS[0]);
     this.backImage = prefs.get('back_img', -1);
+    this.backDesign = prefs.get('back_design', '');
     this.deckId = prefs.get('deck', '');
     this.sound = prefs.get('sound', true);
     this.tapMode = prefs.get('tap_mode', TAP_SINGLE);
@@ -736,7 +741,7 @@ const app = {
 
   saveSettings() {
     const s = {
-      draw: this.drawCount, table: this.tableColor, back: this.backColor, back_img: this.backImage,
+      draw: this.drawCount, table: this.tableColor, back: this.backColor, back_img: this.backImage, back_design: this.backDesign,
       deck: this.deckId, sound: this.sound, tap_mode: this.tapMode, card_size: this.cardSize,
       left_handed: this.leftHanded, landscape_top: this.landscapeTop, auto: this.autoComplete,
       big: this.bigText, info: this.showInfo, screen: this.keepScreen, warn_stuck: this.warnStuck,
@@ -747,7 +752,7 @@ const app = {
 
   applySettings() {
     this.sounds.enabled = this.sound;
-    this.view.setAppearance(this.tableColor, this.backColor, this.bigText, this.deckId, this.backImage);
+    this.view.setAppearance(this.tableColor, this.backColor, this.bigText, this.deckId, this.backImage, this.backDesign);
     this.view.setControls(this.tapMode, this.leftHanded, this.landscapeTop, this.cardSize);
     const dark = darken(this.tableColor);
     document.documentElement.style.setProperty('--table-dark', dark);
@@ -823,14 +828,17 @@ const app = {
     const table = swatches(TABLE_COLORS, this.tableColor);
     box.appendChild(table.node);
 
-    // Baralho: o desenhado pelo app e os de imagem (decks/).
+    // Baralho: o Rkz, os próprios desenhados (js/designs.js) e os de imagem (decks/).
     const tw = 58, th = Math.round(tw * CARD_RATIO);
     const king = new Card(HEARTS * 13 + 12);
     king.faceUp = true;
+    const firstImage = this.decks.length - this.imageDecks;
     const deckThumbs = this.decks.map((d, i) => {
-      if (i > 0) return this.sheetThumb(i - 1, tw, th);
+      if (i >= firstImage) return this.sheetThumb(i - firstImage, tw, th);
       const c = this.thumbCanvas(tw, th);
-      c.getContext('2d').drawImage(renderFace(king, c.width, c.height, false), 0, 0);
+      const style = deckStyle(d.id);
+      c.getContext('2d').drawImage(style ? renderStyledFace(king, c.width, c.height, false, style)
+        : renderFace(king, c.width, c.height, false), 0, 0);
       return c;
     });
     const deckSel = Math.max(0, this.decks.findIndex(d => d.id === this.deckId));
@@ -838,21 +846,23 @@ const app = {
     const deck = gallery(deckThumbs, deckSel);
     box.appendChild(deck.node);
 
-    // Verso: primeiro as cores desenhadas, depois as imagens.
-    const backThumbs = [];
-    let backSel = 0;
-    for (let i = 0; i < BACK_COLORS.length + this.backCount; i++) {
-      const img = i >= BACK_COLORS.length;
-      const index = img ? i - BACK_COLORS.length : -1;
-      if (img) {
-        backThumbs.push(this.sheetThumb(this.decks.length - 1 + index, tw, th));
-      } else {
-        const c = this.thumbCanvas(tw, th);
-        c.getContext('2d').drawImage(renderBack(c.width, c.height, BACK_COLORS[i]), 0, 0);
-        backThumbs.push(c);
-      }
-      if (this.backImage >= 0 ? index === this.backImage : (!img && BACK_COLORS[i] === this.backColor)) backSel = i;
-    }
+    // Verso: as cores, os desenhos próprios e por fim as imagens.
+    const backs = [
+      ...BACK_COLORS.map(color => ({ color })),
+      ...BACK_DESIGNS.map(d => ({ design: d.id })),
+      ...Array.from({ length: this.backCount }, (_, image) => ({ image })),
+    ];
+    const backThumbs = backs.map(b => {
+      if (b.image !== undefined) return this.sheetThumb(this.imageDecks + b.image, tw, th);
+      const c = this.thumbCanvas(tw, th);
+      c.getContext('2d').drawImage(b.design ? renderDesignBack(c.width, c.height, backDesign(b.design))
+        : renderBack(c.width, c.height, b.color), 0, 0);
+      return c;
+    });
+    let backSel = backs.findIndex(b => (this.backImage >= 0 ? b.image === this.backImage
+      : this.backDesign && backDesign(this.backDesign) ? b.design === this.backDesign
+        : b.color === this.backColor));
+    if (backSel < 0) backSel = 0;
     box.appendChild(label('Verso das cartas'));
     const back = gallery(backThumbs, backSel);
     box.appendChild(back.node);
@@ -897,12 +907,10 @@ const app = {
         this.keepScreen = sScreen.checked;
         this.tableColor = table.value();
         this.deckId = this.decks[deck.value()].id;
-        if (back.value() < BACK_COLORS.length) {
-          this.backColor = BACK_COLORS[back.value()];
-          this.backImage = -1;
-        } else {
-          this.backImage = back.value() - BACK_COLORS.length;
-        }
+        const b = backs[back.value()];
+        this.backImage = b.image !== undefined ? b.image : -1;
+        this.backDesign = b.design || '';
+        if (b.color) this.backColor = b.color;
         this.saveSettings();
         if (this.game.drawCount !== this.drawCount && !this.game.won) {
           // Muda o modo de compra já na partida atual.

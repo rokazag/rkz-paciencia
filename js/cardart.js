@@ -127,18 +127,21 @@ class CardArt {
     this.bigText = false;
     this.deckId = '';
     this.backImage = -1;
+    this.backDesign = '';
     this.deckSheet = null;
     this.backSheet = null;
   }
 
   /** Ajusta tamanho/estilo; descarta o cache se algo mudou. */
-  configure(w, h, backColor, bigText, deckId, backImage) {
+  configure(w, h, backColor, bigText, deckId, backImage, backDesign) {
     deckId = deckId || '';
+    backDesign = backDesign || '';
     if (w === this.width && h === this.height && backColor === this.backColor && bigText === this.bigText
-        && deckId === this.deckId && backImage === this.backImage) return;
+        && deckId === this.deckId && backImage === this.backImage && backDesign === this.backDesign) return;
     if (deckId !== this.deckId) {
       this.deckSheet = null;
-      if (deckId) {
+      // Baralhos próprios (js/designs.js) são desenhados; os outros vêm de uma folha de imagem.
+      if (deckId && !deckStyle(deckId)) {
         loadImage(deckUrl(deckId + '.webp')).then(img => {
           if (this.deckId !== deckId) return;
           this.deckSheet = img;
@@ -160,6 +163,7 @@ class CardArt {
     this.bigText = bigText;
     this.deckId = deckId;
     this.backImage = backImage;
+    this.backDesign = backDesign;
     this.clear();
   }
 
@@ -178,8 +182,10 @@ class CardArt {
 
   face(c) {
     if (!this.faces[c.id]) {
-      const img = this.deckSheet ? cropCell(this.deckSheet, c.rank - 1, c.suit, this.width, this.height) : null;
-      this.faces[c.id] = img || renderFace(c, this.width, this.height, this.bigText);
+      const style = deckStyle(this.deckId);
+      const img = !style && this.deckSheet ? cropCell(this.deckSheet, c.rank - 1, c.suit, this.width, this.height) : null;
+      this.faces[c.id] = img || (style ? renderStyledFace(c, this.width, this.height, this.bigText, style)
+        : renderFace(c, this.width, this.height, this.bigText));
     }
     return this.faces[c.id];
   }
@@ -189,7 +195,9 @@ class CardArt {
       const img = this.backImage >= 0 && this.backSheet
         ? cropCell(this.backSheet, this.backImage % BACK_COLS, (this.backImage / BACK_COLS) | 0, this.width, this.height)
         : null;
-      this.backCanvas = img || renderBack(this.width, this.height, this.backColor);
+      const design = this.backImage < 0 ? backDesign(this.backDesign) : null;
+      this.backCanvas = img || (design ? renderDesignBack(this.width, this.height, design)
+        : renderBack(this.width, this.height, this.backColor));
     }
     return this.backCanvas;
   }

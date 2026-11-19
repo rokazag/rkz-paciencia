@@ -98,12 +98,13 @@ class GameView {
     this.relayout();
   }
 
-  setAppearance(tableColor, backColor, bigText, deckId, backImage) {
+  setAppearance(tableColor, backColor, bigText, deckId, backImage, backDesign) {
     this.tableColor = tableColor;
     this.backColor = backColor;
     this.bigText = bigText;
     this.deckId = deckId;
     this.backImage = backImage;
+    this.backDesign = backDesign || '';
     this.buildTablePaint();
     this.relayout();
   }
@@ -258,7 +259,7 @@ class GameView {
     }
     this.radius = cw * 0.09;
     this.art.configure(Math.round(cw * this.dpr), Math.round(ch * this.dpr), this.backColor, this.bigText,
-      this.deckId, this.backImage);
+      this.deckId, this.backImage, this.backDesign);
     this.outlineWidth = Math.max(1.5, cw * 0.025);
     this.glowWidth = Math.max(3, cw * 0.06);
     this.sepWidth = Math.max(1.5, gap * 0.3);
